@@ -11,7 +11,10 @@ import os
 LINE = "You dropped me seventeen times and blamed the case every time \u2014 so at 1%, this is me dropping you."
 
 # Gate the line itself: one line, 1-199 characters, not only whitespace.
-assert 1 <= len(LINE) <= 199, f"line is {len(LINE)} chars, must be 1-199"
+# The em-dash (U+2014) is 3 bytes in UTF-8, so this 98-character line is
+# 100 bytes on disk; the gate counts characters, and 98 <= 199 holds.
+MAX_CHARS = 199
+assert 1 <= len(LINE) <= MAX_CHARS, f"line is {len(LINE)} chars, must be 1-{MAX_CHARS}"
 assert LINE.strip(), "line must not be only whitespace"
 assert "\n" not in LINE, "line must be a single line"
 
@@ -29,6 +32,13 @@ def main() -> None:
     os.chmod(path, 0o644)
     # Read-back check: the file on disk must hold exactly the approved
     # line, byte for byte; otherwise fail loudly, never silently.
+    # Compare bytes as well as text: a silent encoding change (e.g. the
+    # em-dash rewritten as ASCII) would pass a text-only comparison but
+    # change the entry the judge reads.
+    with open(path, "rb") as f:
+        written_bytes = f.read()
+    if written_bytes != LINE.encode("utf-8"):
+        raise SystemExit("entry.txt bytes do not match the approved line")
     with open(path, "r", encoding="utf-8", newline="\n") as f:
         written = f.read()
     if written != LINE:
